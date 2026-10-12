@@ -1,0 +1,21 @@
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Local publish output and archives
+publish/
+artifacts/
+KoaZa-Foreseer-win-x64.zip
+
+# Local application data / secrets
+settings.json
+appsettings.local.json
+.env
+.env.*
+
+# IDEs
+.idea/
+.vscode/
