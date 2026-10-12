@@ -38,7 +38,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: KoaZa-Foreseer-win-x64
-          path: .\KoaZa-Foreseer-win-x64.zip
+          path: KoaZa-Foreseer-win-x64.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -47,4 +47,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: .\KoaZa-Foreseer-win-x64.zip
+          files: KoaZa-Foreseer-win-x64.zip
