@@ -59,7 +59,7 @@ public sealed class MainViewModel : ObservableObject
             var selectedIds = _settings.SelectedCompetitionIds.ToHashSet(StringComparer.Ordinal);
             foreach (var c in storedCompetitions) c.IsSelected = selectedIds.Contains(c.Id);
             MergeCompetitions(storedCompetitions);
-            var cached = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-60), DateTime.UtcNow.AddDays(7));
+            var cached = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-30), DateTime.UtcNow.AddDays(7));
             var initialSelected = Competitions.Where(c => c.IsSelected).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
             ReplaceFixtures(cached.Where(f => initialSelected.Contains(f.CompetitionId) && (f.IsLive || f.KickoffUtc >= DateTime.UtcNow.AddMinutes(-30))));
             Status = cached.Count == 0 ? "آماده؛ برای دریافت داده، کلید API را وارد و تازه‌سازی کنید." : $"دادهٔ ذخیره‌شده بارگذاری شد · {cached.Count} مسابقه";
@@ -93,12 +93,13 @@ public sealed class MainViewModel : ObservableObject
             _settings.SelectedCompetitionIds = Competitions.Where(c => c.IsSelected).Select(c => c.Id).ToList();
             if (_settings.LastSyncUtc.HasValue && DateTime.UtcNow - _settings.LastSyncUtc.Value < TimeSpan.FromMinutes(Math.Max(1, _settings.RefreshMinutes)))
             {
-                var cachedOnly = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-60), DateTime.UtcNow.AddDays(7));
+                var cachedOnly = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-30), DateTime.UtcNow.AddDays(7));
                 var cachedSelectedIds = Competitions.Where(c => c.IsSelected).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
                 ReplaceFixtures(cachedOnly.Where(f => cachedSelectedIds.Contains(f.CompetitionId) && (f.IsLive || f.KickoffUtc >= DateTime.UtcNow.AddMinutes(-30))));
                 Status = $"برای رعایت سهمیهٔ API، تازه‌سازی بعدی پس از {_settings.RefreshMinutes} دقیقه مجاز است. دادهٔ ذخیره‌شده نمایش داده شد.";
                 return;
             }
+
             var token = CancellationToken.None;
             var allFixtures = new List<Fixture>();
             if (_settings.EnableApiFootball && !string.IsNullOrWhiteSpace(ApiKey))
@@ -113,17 +114,20 @@ public sealed class MainViewModel : ObservableObject
                     await _repository.SaveCompetitionsAsync(catalog);
                     _settings.LastCatalogRefreshUtc = DateTime.UtcNow;
                 }
+
                 if (!_settings.LastFixturesRefreshUtc.HasValue || DateTime.UtcNow - _settings.LastFixturesRefreshUtc.Value >= TimeSpan.FromHours(6))
                 {
                     Status = "دریافت برنامه و تاریخچهٔ اخیر مسابقات…";
-                    // One date-range request per six hours minimizes use of the free quota.
-                    var range = await _apiFootball.GetFixturesAsync(ApiKey, DateTime.UtcNow.AddDays(-60), DateTime.UtcNow.AddDays(7), token);
+                    // A 37-day window (30 days back + 7 days forward) is intentionally conservative.
+                    var range = await _apiFootball.GetFixturesAsync(ApiKey, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow.AddDays(7), token);
                     allFixtures.AddRange(range);
                     _settings.LastFixturesRefreshUtc = DateTime.UtcNow;
                 }
+
                 // One live-feed request on each permitted manual refresh.
                 allFixtures.AddRange(await _apiFootball.GetLiveFixturesAsync(ApiKey, token));
             }
+
             if (_settings.EnableOpenLigaDb && !Competitions.Any(c => c.Provider == "OpenLigaDB"))
             {
                 try
@@ -136,6 +140,7 @@ public sealed class MainViewModel : ObservableObject
                 }
                 catch { /* API-Football remains usable if OpenLigaDB is unavailable. */ }
             }
+
             var selectedOpenLiga = Competitions.Where(c => c.IsSelected && c.Provider == "OpenLigaDB").ToList();
             if (_settings.EnableOpenLigaDb && selectedOpenLiga.Count > 0)
                 allFixtures.AddRange(await _openLiga.GetFixturesAsync(selectedOpenLiga, token));
@@ -146,7 +151,7 @@ public sealed class MainViewModel : ObservableObject
             _settings.SelectedCompetitionIds = Competitions.Where(c => c.IsSelected).Select(c => c.Id).ToList();
             await _settingsService.SaveAsync(_settings);
             var visibleIds = Competitions.Where(c => c.IsSelected).Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
-            var cachedAll = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-60), DateTime.UtcNow.AddDays(7));
+            var cachedAll = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-30), DateTime.UtcNow.AddDays(7));
             var visible = cachedAll.Where(f => visibleIds.Contains(f.CompetitionId)).ToList();
             // Keep completed recent matches in storage for modeling, but show only live and the next seven days.
             ReplaceFixtures(visible.Where(f => f.IsLive || f.KickoffUtc >= DateTime.UtcNow.AddMinutes(-30)).OrderBy(f => f.KickoffUtc));
@@ -202,7 +207,7 @@ public sealed class MainViewModel : ObservableObject
         if (SelectedFixture is null) return;
         try
         {
-            var history = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-60), DateTime.UtcNow.AddDays(7));
+            var history = await _repository.GetFixturesAsync(DateTime.UtcNow.AddDays(-30), DateTime.UtcNow.AddDays(7));
             foreach (var row in _predictionService.Predict(SelectedFixture, history)) Predictions.Add(row);
         }
         catch (Exception ex) { Predictions.Add(new PredictionRow { Market="خطا", Outcome=ex.Message, Confidence="—" }); }
